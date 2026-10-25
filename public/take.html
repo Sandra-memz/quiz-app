@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Take a quiz</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 16px; }
+    label { display: block; margin-top: 16px; font-weight: 600; }
+    input[type="text"] { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; font: inherit; }
+    button { margin-top: 20px; padding: 10px 18px; font: inherit; cursor: pointer; }
+    .q { margin-top: 24px; padding: 12px; border: 1px solid #8884; border-radius: 8px; }
+    .opt { display: block; margin: 6px 0; font-weight: 400; }
+    .good { color: #1a8a3a; font-weight: 600; }
+    .bad { color: #c0392b; font-weight: 600; }
+    .note { font-size: 0.9rem; opacity: 0.8; margin-top: 6px; }
+    #score { font-size: 1.4rem; font-weight: 700; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <h1>Take a quiz</h1>
+
+  <div id="startBox">
+    <label>Quiz code</label>
+    <input type="text" id="code" placeholder="e.g. QUIZ-4821" />
+    <label>Your name</label>
+    <input type="text" id="name" placeholder="e.g. Sandra" />
+    <button id="startBtn">Start quiz</button>
+  </div>
+
+  <div id="quizBox"></div>
+  <div id="message"></div>
+
+  <script>
+    const startBox = document.getElementById("startBox");
+    const quizBox = document.getElementById("quizBox");
+    const message = document.getElementById("message");
+    let quiz = null;
+    let playerName = "";
+
+    const urlCode = new URLSearchParams(location.search).get("code");
+    if (urlCode) document.getElementById("code").value = urlCode;
+
+    document.getElementById("startBtn").addEventListener("click", async () => {
+      const code = document.getElementById("code").value.trim().toUpperCase();
+      playerName = document.getElementById("name").value.trim();
+      if (!code || !playerName) {
+        message.textContent = "Enter the quiz code and your name.";
+        return;
+      }
+      message.textContent = "Loading...";
+      try {
+        const res = await fetch("/quizzes/" + code);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not load quiz");
+        quiz = data;
+        message.textContent = "";
+        startBox.style.display = "none";
+        renderQuiz();
+      } catch (err) {
+        message.textContent = "Error: " + err.message;
+      }
+    });
+
+    function renderQuiz() {
+      quizBox.innerHTML = "";
+      const title = document.createElement("h2");
+      title.textContent = quiz.unit || "Quiz " + quiz.code;
+      quizBox.appendChild(title);
+
+      quiz.questions.forEach((q, i) => {
+        const box = document.createElement("div");
+        box.className = "q";
+        const text = document.createElement("div");
+        text.textContent = (i + 1) + ". " + q.text;
+        box.appendChild(text);
+
+        q.options.forEach((opt, j) => {
+          const label = document.createElement("label");
+          label.className = "opt";
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.name = "q" + i;
+          radio.value = j;
+          label.appendChild(radio);
+          label.appendChild(document.createTextNode(" " + opt));
+          box.appendChild(label);
+        });
+        quizBox.appendChild(box);
+      });
+
+      const submit = document.createElement("button");
+      submit.textContent = "Submit answers";
+      submit.addEventListener("click", () => submitQuiz(submit));
+      quizBox.appendChild(submit);
+    }
+
+    async function submitQuiz(btn) {
+      const answers = quiz.questions.map((q, i) => {
+        const picked = document.querySelector('input[name="q' + i + '"]:checked');
+        return picked ? Number(picked.value) : -1;
+      });
+
+      btn.disabled = true;
+      message.textContent = "Marking...";
+      try {
+        const res = await fetch("/quizzes/" + quiz.code + "/attempts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerName, answers }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not submit");
+        message.textContent = "";
+        showResults(data);
+      } catch (err) {
+        message.textContent = "Error: " + err.message;
+        btn.disabled = false;
+      }
+    }
+
+    async function showResults(data) {
+      quizBox.innerHTML = "";
+
+      const score = document.createElement("div");
+      score.id = "score";
+      score.textContent = "Your score: " + data.score + " / " + data.total;
+      quizBox.appendChild(score);
+
+      data.review.forEach((r, i) => {
+        const q = quiz.questions[i];
+        const box = document.createElement("div");
+        box.className = "q";
+
+        const text = document.createElement("div");
+        text.textContent = (i + 1) + ". " + r.text;
+        box.appendChild(text);
+
+        const mine = document.createElement("div");
+        mine.className = r.correct ? "good" : "bad";
+        const yours = r.yourAnswer >= 0 ? q.options[r.yourAnswer] : "No answer";
+        mine.textContent = (r.correct ? "Correct: " : "Your answer: ") + yours;
+        box.appendChild(mine);
+
+        if (!r.correct) {
+          const right = document.createElement("div");
+          right.className = "good";
+          right.textContent = "Correct answer: " + q.options[r.correctIndex];
+          box.appendChild(right);
+        }
+
+        const why = document.createElement("div");
+        why.className = "note";
+        why.textContent = r.explanation;
+        box.appendChild(why);
+
+        quizBox.appendChild(box);
+      });
+
+      try {
+        const res = await fetch("/quizzes/" + quiz.code + "/results");
+        const all = await res.json();
+        const h = document.createElement("h3");
+        h.textContent = "Everyone's scores";
+        quizBox.appendChild(h);
+        all.results.forEach((a) => {
+          const row = document.createElement("div");
+          row.textContent = a.playerName + ": " + a.score + " / " + a.total;
+          quizBox.appendChild(row);
+        });
+      } catch (err) {}
+    }
+  </script>
+</body>
+</html>
