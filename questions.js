@@ -15,11 +15,14 @@ async function generateQuestions({ unit, topics, notes, count }) {
     const prompt = `Write exactly ${total} multiple choice questions for a university student. If notes are provided, spread the questions evenly across the whole text so every major section is covered.
 
 ${source}
+If the unit or topics are mathematical or quantitative (for example calculus, algebra, statistics, physics, accounting or engineering), at least 80% of the questions must be calculation or problem-solving questions with specific numbers, where the student has to work out the answer. Avoid pure definition or theory questions in those subjects. For other subjects, mix theory and applied questions.
+
+Write all mathematics in plain text, never LaTeX: use x^2, sqrt(x), a/b, pi, and no backslashes or dollar signs.
 
 Return ONLY a JSON array, with no markdown and no extra text. Each item must look like:
-{"text": "question", "options": ["A", "B", "C", "D"], "correctIndex": 0, "explanation": "one or two sentences on why the answer is correct"}
+{"text": "question", "options": ["A", "B", "C", "D"], "explanation": "the step-by-step working that leads to the correct answer", "correctIndex": 0}
 
-Rules: exactly 4 options per question, correctIndex is a number from 0 to 3, vary the position of the correct answer, and make the wrong options plausible.`;
+Rules: exactly 4 options per question, correctIndex is a number from 0 to 3, vary the position of the correct answer, and make the wrong options plausible. Work out the answer in the explanation first, then set correctIndex to match it, and double check any arithmetic. Make the wrong options the results of common mistakes.`;
 
   const response = await client.models.generateContent({
     model: process.env.GEMINI_MODEL,
