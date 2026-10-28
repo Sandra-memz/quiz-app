@@ -7,7 +7,7 @@
   <style>
     body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 16px; }
     label { display: block; margin-top: 16px; font-weight: 600; }
-    input, textarea { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; font: inherit; }
+    input, textarea, select { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; font: inherit; }
     button { margin-top: 20px; padding: 10px 18px; font: inherit; cursor: pointer; }
     #result { margin-top: 24px; font-size: 1.2rem; }
   </style>
@@ -24,6 +24,16 @@
   <label>Or paste your lecture notes</label>
   <textarea id="notes" rows="8" placeholder="Paste notes here (optional)"></textarea>
 
+  <label>Number of questions</label>
+  <select id="count">
+    <option value="auto">Let the system decide (recommended)</option>
+    <option value="5">5</option>
+    <option value="10">10</option>
+    <option value="15">15</option>
+    <option value="20">20</option>
+    <option value="25">25</option>
+  </select>
+
   <button id="createBtn">Generate quiz</button>
   <div id="result"></div>
 
@@ -36,6 +46,7 @@
       const topics = document.getElementById("topics").value
         .split(",").map((t) => t.trim()).filter(Boolean);
       const notes = document.getElementById("notes").value.trim();
+      const count = document.getElementById("count").value;
 
       if (!notes && topics.length === 0) {
         result.textContent = "Add some topics or paste your notes first.";
@@ -49,7 +60,7 @@
         const res = await fetch("/quizzes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ unit, topics, notes }),
+          body: JSON.stringify({ unit, topics, notes, count }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Something went wrong");

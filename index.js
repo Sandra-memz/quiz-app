@@ -21,11 +21,11 @@ function makeCode() {
 }
 
 app.post("/quizzes", async (req, res) => {
-  const { unit, topics, notes } = req.body;
+  const { unit, topics, notes, count } = req.body;
   const code = makeCode();
       try {
 
-  const questions = await generateQuestions({ unit, topics, notes, count: 5 });
+  const questions = await generateQuestions({ unit, topics, notes, count });
 
   await db.collection("quizzes").doc(code).set({
     code,
