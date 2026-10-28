@@ -74,6 +74,27 @@
         linkLine.appendChild(document.createTextNode("Share this link: "));
         linkLine.appendChild(a);
         result.appendChild(linkLine);
+                const msg = "Take my quiz on " + (unit || "our unit") + "! Open this link and enter your name: " + link;
+        const wa = document.createElement("a");
+        wa.href = "https://wa.me/?text=" + encodeURIComponent(msg);
+        wa.target = "_blank";
+        wa.rel = "noopener";
+        wa.textContent = "Invite a friend on WhatsApp";
+        wa.style.display = "block";
+        wa.style.marginTop = "12px";
+        result.appendChild(wa);
+
+        const copyBtn = document.createElement("button");
+        copyBtn.textContent = "Copy link";
+        copyBtn.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(link);
+            copyBtn.textContent = "Copied!";
+          } catch (e) {
+            copyBtn.textContent = "Copy failed, copy the link above";
+          }
+        });
+        result.appendChild(copyBtn);
       } catch (err) {
         result.textContent = "Error: " + err.message;
       }
