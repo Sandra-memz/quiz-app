@@ -34,6 +34,14 @@
     <option value="25">25</option>
   </select>
 
+  <label>Difficulty</label>
+  <select id="difficulty">
+    <option value="mixed">Mixed (easy to hard)</option>
+    <option value="easy">Easy</option>
+    <option value="medium">Medium</option>
+    <option value="hard">Hard</option>
+  </select>
+
   <button id="createBtn">Generate quiz</button>
   <div id="result"></div>
 
@@ -47,6 +55,7 @@
         .split(",").map((t) => t.trim()).filter(Boolean);
       const notes = document.getElementById("notes").value.trim();
       const count = document.getElementById("count").value;
+      const difficulty = document.getElementById("difficulty").value;
 
       if (!notes && topics.length === 0) {
         result.textContent = "Add some topics or paste your notes first.";
@@ -60,7 +69,7 @@
         const res = await fetch("/quizzes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ unit, topics, notes, count }),
+          body: JSON.stringify({ unit, topics, notes, count, difficulty }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Something went wrong");
