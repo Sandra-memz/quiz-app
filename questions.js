@@ -3,11 +3,20 @@ const { GoogleGenAI } = require("@google/genai");
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-async function generateQuestions({ unit, topics, notes, count }) {
+async function generateQuestions({ unit, topics, notes, count, difficulty }) {
   const wanted = Number(count);
   const total = wanted > 0
     ? Math.min(25, wanted)
     : notes ? Math.min(25, Math.max(5, Math.round(notes.length / 700))) : 5;
+
+  const levels = {
+    easy: "Difficulty: EASY. Test basic recall and understanding of key terms, and simple one-step problems with small, friendly numbers.",
+    medium: "Difficulty: MEDIUM. Test understanding and application: multi-step reasoning, using concepts in new situations, and wrong options based on common mistakes.",
+    hard: "Difficulty: HARD. Test deep understanding and analysis: multi-step problems, subtle differences between similar concepts, and tricky wrong options that look right at first glance.",
+    mixed: "Difficulty: MIXED. Include roughly equal numbers of easy, medium and hard questions, ordered from easiest to hardest.",
+  };
+  const levelText = levels[difficulty] || levels.mixed;
+
   const source = notes
     ? `Base the questions ONLY on these lecture notes:\n\n${notes}`
     : `Unit: ${unit}\nTopics: ${topics.join(", ")}`;
@@ -15,6 +24,9 @@ async function generateQuestions({ unit, topics, notes, count }) {
     const prompt = `Write exactly ${total} multiple choice questions for a university student. If notes are provided, spread the questions evenly across the whole text so every major section is covered.
 
 ${source}
+
+${levelText}
+
 If the unit or topics are mathematical or quantitative (for example calculus, algebra, statistics, physics, accounting or engineering), at least 80% of the questions must be calculation or problem-solving questions with specific numbers, where the student has to work out the answer. Avoid pure definition or theory questions in those subjects. For other subjects, mix theory and applied questions.
 
 Write all mathematics in plain text, never LaTeX: use x^2, sqrt(x), a/b, pi, and no backslashes or dollar signs.
