@@ -20,28 +20,37 @@ function makeCode() {
   return "QUIZ-" + Math.floor(1000 + Math.random() * 9000);
 }
 
+// 1. Create a quiz
 app.post("/quizzes", async (req, res) => {
-  const { unit, topics, notes, count } = req.body;
+  const { unit, topics, notes, count, difficulty } = req.body;
   const code = makeCode();
-      try {
 
-  const questions = await generateQuestions({ unit, topics, notes, count });
+  try {
+    const questions = await generateQuestions({
+      unit,
+      topics,
+      notes,
+      count,
+      difficulty,
+    });
 
-  await db.collection("quizzes").doc(code).set({
-    code,
-    unit: unit || "",
-    topics: topics || [],
-    createdAt: new Date(),
-    questions,
-  });
+    await db.collection("quizzes").doc(code).set({
+      code,
+      unit: unit || "",
+      topics: topics || [],
+      difficulty: difficulty || "mixed",
+      createdAt: new Date(),
+      questions,
+    });
 
-      res.json({ code });
+    res.json({ code });
   } catch (err) {
     console.error("Generation failed:", err.message);
     res.status(500).json({ error: "Could not generate questions, try again" });
   }
 });
 
+// 2. Load a quiz (without the answers)
 app.get("/quizzes/:code", async (req, res) => {
   const doc = await db.collection("quizzes").doc(req.params.code).get();
 
@@ -60,6 +69,7 @@ app.get("/quizzes/:code", async (req, res) => {
   res.json({ code: quiz.code, unit: quiz.unit, topics: quiz.topics, questions });
 });
 
+// 3. Mark someone's answers and save their score
 app.post("/quizzes/:code/attempts", async (req, res) => {
   const { playerName, answers } = req.body;
 
@@ -96,6 +106,7 @@ app.post("/quizzes/:code/attempts", async (req, res) => {
   res.json({ score, total: quiz.questions.length, review });
 });
 
+// 4. Scoreboard for a quiz
 app.get("/quizzes/:code/results", async (req, res) => {
   const snapshot = await db
     .collection("attempts")
