@@ -83,7 +83,8 @@
         linkLine.appendChild(document.createTextNode("Share this link: "));
         linkLine.appendChild(a);
         result.appendChild(linkLine);
-                const msg = "Take my quiz on " + (unit || "our unit") + "! Open this link and enter your name: " + link;
+        const board = location.origin + "/results.html?code=" + data.code;
+        const msg = "Take my quiz on " + (unit || "our unit") + "! Open this link and enter your name: " + link + "\nScoreboard: " + board;
         const wa = document.createElement("a");
         wa.href = "https://wa.me/?text=" + encodeURIComponent(msg);
         wa.target = "_blank";
