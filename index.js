@@ -189,6 +189,35 @@ app.post(
   }
 );
 
+// 6. Report a question that looks wrong
+app.post("/quizzes/:code/report", async (req, res) => {
+  const { questionId, reason, playerName } = req.body;
+
+  const doc = await db.collection("quizzes").doc(req.params.code).get();
+  if (!doc.exists) {
+    return res.status(404).json({ error: "Quiz not found" });
+  }
+
+  const quiz = doc.data();
+  const q = quiz.questions.find((x) => x.id === Number(questionId));
+  if (!q) {
+    return res.status(400).json({ error: "Question not found" });
+  }
+
+  await db.collection("reports").add({
+    quizCode: quiz.code,
+    questionId: q.id,
+    questionText: q.text,
+    options: q.options,
+    markedCorrectIndex: q.correctIndex,
+    reason: String(reason || "").slice(0, 500),
+    playerName: String(playerName || "").slice(0, 50),
+    createdAt: new Date(),
+  });
+
+  res.json({ ok: true });
+});
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Server running on port " + PORT));

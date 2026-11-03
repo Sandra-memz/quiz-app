@@ -153,6 +153,28 @@
         why.className = "note";
         why.textContent = r.explanation;
         box.appendChild(why);
+                const rep = document.createElement("button");
+        rep.textContent = "Report this question";
+        rep.style.fontSize = "0.85rem";
+        rep.style.marginTop = "8px";
+        rep.addEventListener("click", async () => {
+          const reason = prompt("What is wrong with this question? (optional)");
+          if (reason === null) return;
+          rep.disabled = true;
+          try {
+            const res = await fetch("/quizzes/" + quiz.code + "/report", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ questionId: r.id, reason, playerName }),
+            });
+            if (!res.ok) throw new Error();
+            rep.textContent = "Reported, thank you";
+          } catch (e) {
+            rep.textContent = "Could not report, try again";
+            rep.disabled = false;
+          }
+        });
+        box.appendChild(rep);
 
         quizBox.appendChild(box);
       });
