@@ -168,6 +168,13 @@
           row.textContent = a.playerName + ": " + a.score + " / " + a.total;
           quizBox.appendChild(row);
         });
+
+        const lk = document.createElement("a");
+        lk.href = "/results.html?code=" + quiz.code;
+        lk.textContent = "Open the live scoreboard";
+        lk.style.display = "block";
+        lk.style.marginTop = "16px";
+        quizBox.appendChild(lk);
       } catch (err) {}
     }
   </script>
