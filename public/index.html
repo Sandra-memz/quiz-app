@@ -21,6 +21,9 @@
   <label>Topics (separate with commas)</label>
   <input id="topics" placeholder="e.g. Deadlocks, CPU scheduling" />
 
+  <label>Upload notes (PDF or Word .docx)</label>
+  <input type="file" id="file" accept=".pdf,.docx" />
+  <div id="fileStatus" style="font-size: 0.9rem; opacity: 0.8; margin-top: 6px;"></div>
   <label>Or paste your lecture notes</label>
   <textarea id="notes" rows="8" placeholder="Paste notes here (optional)"></textarea>
 
@@ -48,6 +51,29 @@
   <script>
     const btn = document.getElementById("createBtn");
     const result = document.getElementById("result");
+        document.getElementById("file").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      const status = document.getElementById("fileStatus");
+      if (!file) return;
+
+      status.textContent = "Reading " + file.name + "...";
+      const form = new FormData();
+      form.append("file", file);
+
+      try {
+        const res = await fetch("/extract-text", { method: "POST", body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not read the file");
+
+        document.getElementById("notes").value = data.text;
+        status.textContent =
+          "Loaded " + data.text.length + " characters from " + file.name +
+          (data.truncated ? " (very long file, so only the first part was used)" : "") +
+          ". You can edit the text below before generating.";
+      } catch (err) {
+        status.textContent = "Error: " + err.message;
+      }
+    });
 
     btn.addEventListener("click", async () => {
       const unit = document.getElementById("unit").value.trim();

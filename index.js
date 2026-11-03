@@ -3,6 +3,14 @@ const cors = require("cors");
 const { initializeApp, cert } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { generateQuestions } = require("./questions");
+const multer = require("multer");
+const mammoth = require("mammoth");
+const { PDFParse } = require("pdf-parse");
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
   ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
@@ -13,7 +21,7 @@ initializeApp({ credential: cert(serviceAccount) });
 const db = getFirestore();
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 app.use(express.static("public"));
 
 function makeCode() {
@@ -127,6 +135,60 @@ app.get("/quizzes/:code/results", async (req, res) => {
 
   res.json({ code: req.params.code, results });
 });
+
+// 5. Read text out of an uploaded PDF or Word file
+app.post(
+  "/extract-text",
+  (req, res, next) => {
+    upload.single("file")(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ error: "File too large (max 10 MB) or invalid" });
+      }
+      next();
+    });
+  },
+  async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const name = req.file.originalname.toLowerCase();
+
+    try {
+      let text = "";
+
+      if (name.endsWith(".pdf")) {
+        const parser = new PDFParse({ data: new Uint8Array(req.file.buffer) });
+        try {
+          const result = await parser.getText();
+          text = result.text;
+        } finally {
+          await parser.destroy();
+        }
+      } else if (name.endsWith(".docx")) {
+        const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+        text = result.value;
+      } else {
+        return res.status(400).json({ error: "Only PDF and DOCX files are supported" });
+      }
+
+      text = text.replace(/\s+\n/g, "\n").trim();
+
+      if (text.length < 50) {
+        return res.status(422).json({
+          error: "Could not find readable text in this file. It may be a scanned document.",
+        });
+      }
+
+      const MAX = 120000;
+      res.json({ text: text.slice(0, MAX), truncated: text.length > MAX });
+    } catch (err) {
+      console.error("Extract failed:", err.message);
+      res.status(500).json({ error: "Could not read that file" });
+    }
+  }
+);
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Server running on port " + PORT));
