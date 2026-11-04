@@ -1,13 +1,13 @@
 const express = require("express");
 const cors = require("cors");
-const { initializeApp, cert } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
-const { generateQuestions } = require("./questions");
+const { randomInt } = require("crypto");
+const rateLimit = require("express-rate-limit");
 const multer = require("multer");
 const mammoth = require("mammoth");
 const { PDFParse } = require("pdf-parse");
-const rateLimit = require("express-rate-limit");
-const { randomInt } = require("crypto");
+const { initializeApp, cert } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
+const { generateQuestions } = require("./questions");
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -22,11 +22,12 @@ initializeApp({ credential: cert(serviceAccount) });
 
 const db = getFirestore();
 const app = express();
+
 app.set("trust proxy", 1);
 
 const createLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 10, 
+  limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "You have created too many quizzes. Please try again in an hour." },
@@ -39,6 +40,7 @@ const uploadLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many uploads. Please try again in an hour." },
 });
+
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static("public"));
@@ -62,20 +64,29 @@ async function makeUniqueCode() {
 app.post("/quizzes", createLimiter, async (req, res) => {
   const { unit, topics, notes, count, difficulty } = req.body;
 
+  const topicList = Array.isArray(topics)
+    ? topics.filter((t) => typeof t === "string" && t.trim()).slice(0, 20)
+    : [];
+  const notesText = typeof notes === "string" ? notes.trim() : "";
+
+  if (!notesText && topicList.length === 0) {
+    return res.status(400).json({ error: "Add some topics or paste your notes first" });
+  }
+
   try {
     const code = await makeUniqueCode();
     const questions = await generateQuestions({
       unit,
-      topics,
-      notes,
+      topics: topicList,
+      notes: notesText,
       count,
       difficulty,
     });
 
     await db.collection("quizzes").doc(code).set({
       code,
-      unit: unit || "",
-      topics: topics || [],
+      unit: String(unit || "").slice(0, 100),
+      topics: topicList,
       difficulty: difficulty || "mixed",
       createdAt: new Date(),
       questions,
@@ -111,12 +122,25 @@ app.get("/quizzes/:code", async (req, res) => {
 app.post("/quizzes/:code/attempts", async (req, res) => {
   const { playerName, answers } = req.body;
 
+  const name = String(playerName || "").trim();
+  if (!name || name.length > 50) {
+    return res.status(400).json({ error: "Enter your name (up to 50 characters)" });
+  }
+  if (!Array.isArray(answers) || !answers.every((a) => Number.isInteger(a))) {
+    return res.status(400).json({ error: "Answers are not valid" });
+  }
+
   const doc = await db.collection("quizzes").doc(req.params.code).get();
   if (!doc.exists) {
     return res.status(404).json({ error: "Quiz not found" });
   }
 
   const quiz = doc.data();
+
+  if (answers.length !== quiz.questions.length) {
+    return res.status(400).json({ error: "Number of answers does not match the quiz" });
+  }
+
   let score = 0;
 
   const review = quiz.questions.map((q, i) => {
@@ -134,7 +158,7 @@ app.post("/quizzes/:code/attempts", async (req, res) => {
 
   await db.collection("attempts").add({
     quizCode: quiz.code,
-    playerName,
+    playerName: name,
     answers,
     score,
     total: quiz.questions.length,
@@ -183,12 +207,12 @@ app.post(
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    const name = req.file.originalname.toLowerCase();
+    const fileName = req.file.originalname.toLowerCase();
 
     try {
       let text = "";
 
-      if (name.endsWith(".pdf")) {
+      if (fileName.endsWith(".pdf")) {
         const parser = new PDFParse({ data: new Uint8Array(req.file.buffer) });
         try {
           const result = await parser.getText();
@@ -196,7 +220,7 @@ app.post(
         } finally {
           await parser.destroy();
         }
-      } else if (name.endsWith(".docx")) {
+      } else if (fileName.endsWith(".docx")) {
         const result = await mammoth.extractRawText({ buffer: req.file.buffer });
         text = result.value;
       } else {
@@ -248,7 +272,6 @@ app.post("/quizzes/:code/report", async (req, res) => {
 
   res.json({ ok: true });
 });
-
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Server running on port " + PORT));
