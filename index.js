@@ -6,6 +6,7 @@ const { generateQuestions } = require("./questions");
 const multer = require("multer");
 const mammoth = require("mammoth");
 const { PDFParse } = require("pdf-parse");
+const rateLimit = require("express-rate-limit");
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -20,6 +21,23 @@ initializeApp({ credential: cert(serviceAccount) });
 
 const db = getFirestore();
 const app = express();
+app.set("trust proxy", 1);
+
+const createLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10, 
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "You have created too many quizzes. Please try again in an hour." },
+});
+
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many uploads. Please try again in an hour." },
+});
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static("public"));
@@ -29,7 +47,7 @@ function makeCode() {
 }
 
 // 1. Create a quiz
-app.post("/quizzes", async (req, res) => {
+app.post("/quizzes", createLimiter, async (req, res) => {
   const { unit, topics, notes, count, difficulty } = req.body;
   const code = makeCode();
 
@@ -139,6 +157,7 @@ app.get("/quizzes/:code/results", async (req, res) => {
 // 5. Read text out of an uploaded PDF or Word file
 app.post(
   "/extract-text",
+  uploadLimiter,
   (req, res, next) => {
     upload.single("file")(req, res, (err) => {
       if (err) {
