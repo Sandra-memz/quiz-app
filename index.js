@@ -7,6 +7,7 @@ const multer = require("multer");
 const mammoth = require("mammoth");
 const { PDFParse } = require("pdf-parse");
 const rateLimit = require("express-rate-limit");
+const { randomInt } = require("crypto");
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -42,16 +43,27 @@ app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static("public"));
 
-function makeCode() {
-  return "QUIZ-" + Math.floor(1000 + Math.random() * 9000);
+async function makeUniqueCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    let code = "QUIZ-";
+    for (let i = 0; i < 5; i++) {
+      code += chars[randomInt(chars.length)];
+    }
+    const doc = await db.collection("quizzes").doc(code).get();
+    if (!doc.exists) return code;
+  }
+
+  throw new Error("Could not create a unique code");
 }
 
 // 1. Create a quiz
 app.post("/quizzes", createLimiter, async (req, res) => {
   const { unit, topics, notes, count, difficulty } = req.body;
-  const code = makeCode();
 
   try {
+    const code = await makeUniqueCode();
     const questions = await generateQuestions({
       unit,
       topics,
